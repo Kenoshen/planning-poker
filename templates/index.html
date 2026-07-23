@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planning Poker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    main { width: 100%; max-width: 420px; }
+    #error { color: var(--pico-del-color); font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <hgroup>
+        <h1>Planning Poker</h1>
+        <p>Enter your name and team to join a room.</p>
+      </hgroup>
+      <form id="join-form"
+            _="on submit
+                 set name to #player-name.value.trim()
+                 set team to #team-name.value.trim()
+                 if name is '' or team is ''
+                   set #error.style.display to 'block'
+                   set #error.innerText to 'Both fields are required.'
+                   halt
+                 end
+                 call window.joinRoom(name, team)
+                 halt">
+        <label for="player-name">Your name
+          <input id="player-name" type="text" placeholder="Ada Lovelace" autocomplete="off" />
+        </label>
+        <label for="team-name">Team name
+          <input id="team-name" type="text" placeholder="Team Phoenix" autocomplete="off" />
+        </label>
+        <button type="submit">Join Room</button>
+        <small id="error"></small>
+      </form>
+    </article>
+  </main>
+
+  <script>
+    (function() {
+      const params = new URLSearchParams(location.search);
+      const urlTeam = params.get('team');
+      const savedName = localStorage.getItem('poker_name');
+      const savedTeam = urlTeam || localStorage.getItem('poker_team');
+      if (savedName) document.getElementById('player-name').value = savedName;
+      if (savedTeam) document.getElementById('team-name').value = savedTeam;
+    })();
+
+    window.joinRoom = function(name, team) {
+      localStorage.setItem('poker_name', name);
+      localStorage.setItem('poker_team', team);
+      history.replaceState(null, '', '/?team=' + encodeURIComponent(team));
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const url = `${proto}://${location.host}/ws?name=${encodeURIComponent(name)}&team=${encodeURIComponent(team)}`;
+      const ws = new WebSocket(url);
+      window._ws = ws;
+
+      document.body.innerHTML = '<main class="container"><div id="room-root" aria-busy="true">Connecting...</div></main>';
+
+      ws.onmessage = function(e) {
+        document.getElementById('room-root').outerHTML = e.data;
+        htmx.process(document.body);
+        _hyperscript.processNode(document.body);
+        const el = document.getElementById('poker-timer');
+        if (el) {
+          if (el.dataset.revealed === 'true') {
+            if (window._pokerTimerInterval) clearInterval(window._pokerTimerInterval);
+          } else {
+            const start = parseInt(el.dataset.start, 10);
+            if (window._pokerTimerStart !== start) {
+              window._pokerTimerStart = start;
+              if (window._pokerTimerInterval) clearInterval(window._pokerTimerInterval);
+              window._pokerTimerInterval = setInterval(function() {
+                const t = document.getElementById('poker-timer');
+                if (!t) { clearInterval(window._pokerTimerInterval); return; }
+                const elapsed = Math.floor((Date.now() - window._pokerTimerStart) / 1000);
+                t.textContent = Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0');
+              }, 1000);
+            }
+          }
+        }
+      };
+
+      ws.onclose = function() {
+        document.body.innerHTML = `
+          <main class="container" style="text-align:center;padding-top:4rem;">
+            <p>Disconnected. <a href="/">Rejoin</a></p>
+          </main>`;
+      };
+    };
+
+    window.sendWS = function(type, payload) {
+      if (window._ws && window._ws.readyState === 1) {
+        window._ws.send(JSON.stringify({type, payload: payload || ''}));
+      }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<div id="room-root">
+  <style>
+    .members { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0; }
+    .member {
+      display: flex; flex-direction: column; align-items: center;
+      border: 1px solid var(--pico-muted-border-color);
+      border-radius: var(--pico-border-radius);
+      padding: 0.75rem 1rem; min-width: 80px;
+    }
+    .card-face {
+      width: 44px; height: 60px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; font-weight: 700; margin-bottom: 0.4rem;
+    }
+    .card-face.voted   { background: var(--pico-ins-color); color: #fff; }
+    .card-face.waiting { background: var(--pico-muted-color); color: var(--pico-muted-border-color); font-size: 0.75rem; }
+    .card-face.revealed { background: var(--pico-primary); color: #fff; }
+    .card-face.revealed.other { background: var(--pico-muted-color); opacity: 0.5; }
+    .member-name { font-size: 0.75rem; color: var(--pico-muted-color); text-align: center; }
+    .member-name.me { color: var(--pico-primary); font-weight: 600; }
+    .fibs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0; }
+    .fib-btn {
+      width: 64px; height: 64px; border-radius: var(--pico-border-radius);
+      background: transparent; border: 2px solid var(--pico-muted-border-color);
+      color: var(--pico-color); font-size: 1rem; font-weight: 700;
+      cursor: pointer; margin-bottom: 0; white-space: nowrap;
+    }
+    .fib-btn:hover { border-color: var(--pico-primary); color: var(--pico-primary); background: transparent; }
+    .fib-btn.selected { background: var(--pico-primary); border-color: var(--pico-primary); color: #fff; }
+    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-bottom: 0; }
+    .actions button { margin-bottom: 0; width: auto; }
+    .waiting-msg { color: var(--pico-muted-color); font-size: 0.9rem; }
+    .timer { font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--pico-muted-color); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.75rem; margin-top: 0.5rem; }
+    .summary-stat { text-align: center; background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); padding: 0.75rem 0.5rem; }
+    .summary-stat .value { font-size: 1.6rem; font-weight: 700; color: var(--pico-primary); line-height: 1; }
+    .summary-stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pico-muted-color); margin-top: 0.3rem; }
+    .consensus-yes { color: var(--pico-ins-color) !important; }
+    .consensus-no  { color: var(--pico-del-color) !important; }
+  </style>
+
+  <div class="container">
+    <hgroup>
+      <h2>Planning Poker</h2>
+      <p>
+        Playing as <strong>{{range .State.Members}}{{if eq .ID $.MyID}}{{.Name}}{{end}}{{end}}</strong> &mdash; {{len .State.Members}} member{{if gt (len .State.Members) 1}}s{{end}} in room
+        &mdash; <span class="timer" id="poker-timer" data-start="{{.State.TimerStart}}" data-revealed="{{.State.Revealed}}">{{.State.TimerDisplay}}</span>
+      </p>
+    </hgroup>
+
+    <article>
+      <header><strong>Team</strong></header>
+      <div class="members">
+        {{range .State.Members}}
+        <div class="member">
+          {{if $.State.Revealed}}
+            <div class="card-face revealed{{if ne .ID $.MyID}} other{{end}}">{{if .Vote}}{{.Vote}}{{else}}&mdash;{{end}}</div>
+          {{else if .Voted}}
+            <div class="card-face voted">&#10003;</div>
+          {{else}}
+            <div class="card-face waiting">&hellip;</div>
+          {{end}}
+          <div class="member-name{{if eq .ID $.MyID}} me{{end}}">{{.Name}}</div>
+        </div>
+        {{end}}
+      </div>
+    </article>
+
+    {{if .State.Revealed}}
+    <article>
+      <header><strong>Results</strong></header>
+      <div class="summary-grid">
+        <div class="summary-stat">
+          <div class="value">{{.State.Summary.DecisionTime}}</div>
+          <div class="label">Time</div>
+        </div>
+        <div class="summary-stat">
+          <div class="value">{{.State.Summary.Low}}</div>
+          <div class="label">Low</div>
+        </div>
+        <div class="summary-stat">
+          <div class="value">{{.State.Summary.High}}</div>
+          <div class="label">High</div>
+        </div>
+        <div class="summary-stat">
+          <div class="value">{{.State.Summary.Average}}</div>
+          <div class="label">Average</div>
+        </div>
+        <div class="summary-stat">
+          {{if .State.Summary.Consensus}}
+            <div class="value consensus-yes">Yes</div>
+          {{else}}
+            <div class="value consensus-no">No</div>
+          {{end}}
+          <div class="label">Consensus</div>
+        </div>
+      </div>
+    </article>
+    {{end}}
+
+    <article>
+      <header><strong>Your Vote</strong></header>
+      <div class="fibs">
+        {{range .Fibs}}
+        <button class="fib-btn{{if eq . $.MyVote}} selected{{end}}"
+                _="on click call window.sendWS('vote', '{{.}}')">{{.}}</button>
+        {{end}}
+      </div>
+    </article>
+
+    <article>
+      <header><strong>Actions</strong></header>
+      <div class="actions">
+        {{if .State.Revealed}}
+          <button class="secondary" _="on click call window.sendWS('clear', '')">Clear Votes</button>
+        {{else}}
+          <button _="on click call window.sendWS('reveal', '')">Reveal Votes</button>
+          <button class="secondary" _="on click call window.sendWS('clear', '')">Clear Votes</button>
+        {{end}}
+      </div>
+    </article>
+  </div>
+
+</div>
