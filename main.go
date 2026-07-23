@@ -29,12 +29,12 @@ type Client struct {
 }
 
 type Room struct {
-	mu        sync.Mutex
-	name      string
-	clients    map[*Client]bool
-	votes      map[string]string
-	revealed   bool
-	timerStart time.Time
+	mu           sync.Mutex
+	name         string
+	clients      map[*Client]bool
+	votes        map[string]string
+	revealed     bool
+	timerStart   time.Time
 	decisionTime string
 }
 
