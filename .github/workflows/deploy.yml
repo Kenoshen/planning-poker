@@ -1,0 +1,64 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [master]
+    types: [completed]
+
+# ─── Required GitHub configuration ───────────────────────────────────────────
+#
+# Infrastructure is managed by terraform/ — run `terraform apply` there first.
+# Terraform outputs the values needed below.
+#
+# Repository variables (Settings → Secrets and variables → Variables):
+#   GCP_PROJECT_ID          your GCP project ID
+#   GCP_REGION              e.g. us-central1
+#   GCP_ARTIFACT_REGISTRY   from: terraform output artifact_registry
+#   CLOUD_RUN_SERVICE       Cloud Run service name (var.service_name in tfvars)
+#
+# Repository secrets (Settings → Secrets and variables → Secrets):
+#   GCP_SERVICE_ACCOUNT_KEY   JSON key for the deploy service account
+#                             Create: gcloud iam service-accounts keys create key.json \
+#                               --iam-account=$(terraform output -raw deploy_sa_email)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        env:
+          IMAGE: ${{ vars.GCP_ARTIFACT_REGISTRY }}/poker:${{ github.sha }}
+        run: |
+          docker build \
+            -f Dockerfile \
+            -t "$IMAGE" \
+            .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE: ${{ vars.GCP_ARTIFACT_REGISTRY }}/poker:${{ github.sha }}
+        run: |
+          gcloud run deploy ${{ vars.CLOUD_RUN_SERVICE }} \
+            --image "$IMAGE" \
+            --region ${{ vars.GCP_REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --platform managed \
+            --quiet
+          # All other config (env vars, scaling, service account) is managed by terraform/
