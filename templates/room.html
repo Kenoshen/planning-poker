@@ -41,7 +41,10 @@
 
   <div class="container">
     <hgroup>
-      <h2>Planning Poker</h2>
+      <h2 style="display:flex; align-items:center; gap:0.5rem;">
+        <img src="/favicon.svg" alt="" width="28" height="28" />
+        Planning Poker
+      </h2>
       <p>
         Playing as <strong>{{range .State.Members}}{{if eq .ID $.MyID}}{{.Name}}{{end}}{{end}}</strong> &mdash; {{len .State.Members}} member{{if gt (len .State.Members) 1}}s{{end}} in room
         &mdash; <span class="timer" id="poker-timer" data-start="{{.State.TimerStart}}" data-revealed="{{.State.Revealed}}">{{.State.TimerDisplay}}</span>

@@ -9,5 +9,6 @@ FROM alpine:3.21
 WORKDIR /app
 COPY --from=builder /app/poker .
 COPY templates/ templates/
+COPY static/ static/
 EXPOSE 7878
 CMD ["./poker"]

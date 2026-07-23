@@ -144,6 +144,8 @@ func main() {
 	go hub.reapExpiredRooms()
 	r := gin.Default()
 
+	r.StaticFile("/favicon.svg", "static/favicon.svg")
+
 	r.GET("/", func(c *gin.Context) {
 		templates.ExecuteTemplate(c.Writer, "index.html", nil)
 	})
