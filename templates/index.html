@@ -54,6 +54,23 @@
     })();
 
     window.joinRoom = function(name, team) {
+      const err = document.getElementById('error');
+      err.style.display = 'none';
+
+      fetch('/api/room-available?team=' + encodeURIComponent(team))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (!data.available) {
+            err.style.display = 'block';
+            err.innerText = data.reason || 'Unable to join right now. Please wait and try again.';
+            return;
+          }
+          connectToRoom(name, team);
+        })
+        .catch(function() { connectToRoom(name, team); });
+    };
+
+    function connectToRoom(name, team) {
       localStorage.setItem('poker_name', name);
       localStorage.setItem('poker_team', team);
       history.replaceState(null, '', '/?team=' + encodeURIComponent(team));
@@ -94,7 +111,7 @@
             <p>Disconnected. <a href="/">Rejoin</a></p>
           </main>`;
       };
-    };
+    }
 
     window.sendWS = function(type, payload) {
       if (window._ws && window._ws.readyState === 1) {

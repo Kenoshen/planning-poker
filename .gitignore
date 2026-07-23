@@ -22,6 +22,7 @@ vendor/
 # Build output
 dist/
 bin/
+tmp/
 
 # Environment files
 .env

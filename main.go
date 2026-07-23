@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -31,6 +32,13 @@ type Client struct {
 const (
 	roomMaxAge       = 60 * time.Minute
 	roomReapInterval = time.Minute
+	maxRooms         = 20
+	maxRoomMembers   = 20
+)
+
+var (
+	errTooManyRooms = errors.New("too many open rooms")
+	errRoomFull     = errors.New("room is full")
 )
 
 type Room struct {
@@ -53,11 +61,14 @@ func newHub() *Hub {
 	return &Hub{rooms: make(map[string]*Room)}
 }
 
-func (h *Hub) getOrCreateRoom(name string) *Room {
+func (h *Hub) getOrCreateRoom(name string) (*Room, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if r, ok := h.rooms[name]; ok {
-		return r
+		return r, nil
+	}
+	if len(h.rooms) >= maxRooms {
+		return nil, errTooManyRooms
 	}
 	r := &Room{
 		name:       name,
@@ -67,7 +78,25 @@ func (h *Hub) getOrCreateRoom(name string) *Room {
 		createdAt:  time.Now(),
 	}
 	h.rooms[name] = r
-	return r
+	return r, nil
+}
+
+func (h *Hub) roomAvailability(name string) (bool, string) {
+	h.mu.Lock()
+	r, ok := h.rooms[name]
+	roomCount := len(h.rooms)
+	h.mu.Unlock()
+
+	if ok {
+		if r.isFull() {
+			return false, "This room is full. Please wait for someone to leave."
+		}
+		return true, ""
+	}
+	if roomCount >= maxRooms {
+		return false, "Room limit reached. Please wait and try again."
+	}
+	return true, ""
 }
 
 func (h *Hub) removeRoom(name string) {
@@ -119,6 +148,16 @@ func main() {
 		templates.ExecuteTemplate(c.Writer, "index.html", nil)
 	})
 
+	r.GET("/api/room-available", func(c *gin.Context) {
+		teamName := c.Query("team")
+		if teamName == "" {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		available, reason := hub.roomAvailability(teamName)
+		c.JSON(http.StatusOK, gin.H{"available": available, "reason": reason})
+	})
+
 	r.GET("/ws", func(c *gin.Context) {
 		teamName := c.Query("team")
 		userName := c.Query("name")
@@ -126,12 +165,20 @@ func main() {
 			c.Status(http.StatusBadRequest)
 			return
 		}
+		room, err := hub.getOrCreateRoom(teamName)
+		if err != nil {
+			c.String(http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if room.isFull() {
+			c.String(http.StatusServiceUnavailable, errRoomFull.Error())
+			return
+		}
 		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			log.Println("upgrade error:", err)
 			return
 		}
-		room := hub.getOrCreateRoom(teamName)
 		client := &Client{conn: conn, room: room, id: uuid.NewString(), name: userName, send: make(chan []byte, 256)}
 		room.mu.Lock()
 		room.clients[client] = true
@@ -289,6 +336,12 @@ func calcSummary(votes map[string]string) Summary {
 		Low:       fmtNum(lo),
 		High:      fmtNum(hi),
 	}
+}
+
+func (r *Room) isFull() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.clients) >= maxRoomMembers
 }
 
 func (r *Room) closeAllClients() {
