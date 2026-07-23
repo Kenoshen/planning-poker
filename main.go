@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"sync"
@@ -136,6 +137,14 @@ type Msg struct {
 
 var fibonacci = []string{"1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?"}
 
+func faviconVersion() string {
+	info, err := os.Stat("static/favicon.svg")
+	if err != nil {
+		return "0"
+	}
+	return strconv.FormatInt(info.ModTime().UnixNano(), 10)
+}
+
 var templates *template.Template
 
 func main() {
@@ -147,7 +156,7 @@ func main() {
 	r.StaticFile("/favicon.svg", "static/favicon.svg")
 
 	r.GET("/", func(c *gin.Context) {
-		templates.ExecuteTemplate(c.Writer, "index.html", nil)
+		templates.ExecuteTemplate(c.Writer, "index.html", gin.H{"FaviconVersion": faviconVersion()})
 	})
 
 	r.GET("/api/room-available", func(c *gin.Context) {
@@ -411,10 +420,11 @@ func (r *Room) broadcast(hub *Hub) {
 
 func buildRoomHTML(state RoomState, myID string, myVote string, fibs []string) []byte {
 	type tmplData struct {
-		State  RoomState
-		MyID   string
-		MyVote string
-		Fibs   []string
+		State          RoomState
+		MyID           string
+		MyVote         string
+		Fibs           []string
+		FaviconVersion string
 	}
 	var buf []byte
 	t := templates.Lookup("room.html")
@@ -422,7 +432,7 @@ func buildRoomHTML(state RoomState, myID string, myVote string, fibs []string) [
 		return []byte("<div>template error</div>")
 	}
 	w := &bytesWriter{buf: &buf}
-	t.Execute(w, tmplData{State: state, MyID: myID, MyVote: myVote, Fibs: fibs})
+	t.Execute(w, tmplData{State: state, MyID: myID, MyVote: myVote, Fibs: fibs, FaviconVersion: faviconVersion()})
 	return buf
 }
 

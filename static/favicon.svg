@@ -2,15 +2,15 @@
   <defs>
     <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#38bdf8"/>
-      <stop offset="1" stop-color="#059669"/>
+      <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
   </defs>
   <g transform="rotate(-14 13 18)">
     <rect x="4" y="8" width="16" height="22" rx="2.5" fill="url(#cardGrad)" stroke="#0c4a6e" stroke-width="1"/>
-    <path d="M12 14 L14.5 19 L12 24 L9.5 19 Z" fill="#f0fdf4"/>
+    <path d="M12 14 L14.5 19 L12 24 L9.5 19 Z" fill="#f5f3ff"/>
   </g>
   <g transform="rotate(11 19 18)">
-    <rect x="12" y="6" width="16" height="22" rx="2.5" fill="url(#cardGrad)" stroke="#064e3b" stroke-width="1"/>
-    <path d="M20 12 L22.5 17 L20 22 L17.5 17 Z" fill="#f0fdf4"/>
+    <rect x="12" y="6" width="16" height="22" rx="2.5" fill="url(#cardGrad)" stroke="#4c1d95" stroke-width="1"/>
+    <path d="M20 12 L22.5 17 L20 22 L17.5 17 Z" fill="#f5f3ff"/>
   </g>
 </svg>
