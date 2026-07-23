@@ -28,6 +28,11 @@ type Client struct {
 	send chan []byte
 }
 
+const (
+	roomMaxAge       = 60 * time.Minute
+	roomReapInterval = time.Minute
+)
+
 type Room struct {
 	mu           sync.Mutex
 	name         string
@@ -36,6 +41,7 @@ type Room struct {
 	revealed     bool
 	timerStart   time.Time
 	decisionTime string
+	createdAt    time.Time
 }
 
 type Hub struct {
@@ -58,6 +64,7 @@ func (h *Hub) getOrCreateRoom(name string) *Room {
 		clients:    make(map[*Client]bool),
 		votes:      make(map[string]string),
 		timerStart: time.Now(),
+		createdAt:  time.Now(),
 	}
 	h.rooms[name] = r
 	return r
@@ -67,6 +74,30 @@ func (h *Hub) removeRoom(name string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	delete(h.rooms, name)
+}
+
+func (h *Hub) reapExpiredRooms() {
+	ticker := time.NewTicker(roomReapInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		h.closeExpiredRooms()
+	}
+}
+
+func (h *Hub) closeExpiredRooms() {
+	h.mu.Lock()
+	var expired []*Room
+	for name, r := range h.rooms {
+		if time.Since(r.createdAt) > roomMaxAge {
+			expired = append(expired, r)
+			delete(h.rooms, name)
+		}
+	}
+	h.mu.Unlock()
+
+	for _, r := range expired {
+		r.closeAllClients()
+	}
 }
 
 type Msg struct {
@@ -81,6 +112,7 @@ var templates *template.Template
 func main() {
 	templates = template.Must(template.ParseGlob("templates/*.html"))
 	hub := newHub()
+	go hub.reapExpiredRooms()
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
@@ -256,6 +288,15 @@ func calcSummary(votes map[string]string) Summary {
 		Consensus: consensus,
 		Low:       fmtNum(lo),
 		High:      fmtNum(hi),
+	}
+}
+
+func (r *Room) closeAllClients() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for c := range r.clients {
+		close(c.send)
+		delete(r.clients, c)
 	}
 }
 
