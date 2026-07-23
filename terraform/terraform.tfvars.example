@@ -1,3 +1,6 @@
 project_id   = "your-gcp-project-id"
 region       = "us-central1"
 service_name = "poker"
+
+# Optional — requires domain ownership verified first: gcloud domains verify yourdomain.com
+# domain = "poker.yourdomain.com"

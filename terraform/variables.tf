@@ -14,3 +14,9 @@ variable "service_name" {
   type        = string
   default     = "poker"
 }
+
+variable "domain" {
+  description = "Custom domain to map to the Cloud Run service (leave empty to skip)"
+  type        = string
+  default     = ""
+}

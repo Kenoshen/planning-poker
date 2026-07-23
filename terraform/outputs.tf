@@ -12,3 +12,8 @@ output "deploy_sa_email" {
   description = "Deploy service account email — use this when creating the GCP_SERVICE_ACCOUNT_KEY"
   value       = google_service_account.github_deploy.email
 }
+
+output "domain_mapping_records" {
+  description = "DNS records to create at your registrar/DNS host for the custom domain"
+  value       = var.domain != "" ? google_cloud_run_domain_mapping.poker[0].status[0].resource_records : []
+}
